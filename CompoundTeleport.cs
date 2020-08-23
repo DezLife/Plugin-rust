@@ -5,26 +5,15 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-    [Info("CompoundTeleport", "DezLife", "1.0.0")]
-    [Description("Teleport to npc city")]
-    class CompoundTeleport : RustPlugin
-    {
+	[Info("CompoundTeleport", "DezLife", "1.0.0")]
+	[Description("Teleport to npc city")]
+	class CompoundTeleport : RustPlugin
+	{
 		#region Variables
 		private Dictionary<string, MonumentInfo> positions = new Dictionary<string, MonumentInfo>();
 		private Dictionary<BasePlayer, SleepingBag[]> bags = new Dictionary<BasePlayer, SleepingBag[]>();
 		private Queue<SleepingBag> bagsPool = new Queue<SleepingBag>();
 		List<Vector3> PositionsOutPost = new List<Vector3>()
-        {
-            new Vector3(-6.4f, 0, 3.5f),
-            new Vector3(-12.4f, 0, 17.5f),
-            new Vector3(27.4f, 3, -17.5f),
-            new Vector3(24.4f, 0, 10.5f),
-            new Vector3(23.4f, 0, 15.5f),
-            new Vector3(12.4f, 0, 17.5f),
-            new Vector3(-15.4f, 0, 17.5f),
-            new Vector3(-26.4f, 2.55f, 28.5f)
-        };
-		List<Vector3> PositionsBandit = new List<Vector3>()
 		{
 			new Vector3(-6.4f, 0, 3.5f),
 			new Vector3(-12.4f, 0, 17.5f),
@@ -33,6 +22,17 @@ namespace Oxide.Plugins
 			new Vector3(23.4f, 0, 15.5f),
 			new Vector3(12.4f, 0, 17.5f),
 			new Vector3(-15.4f, 0, 17.5f),
+			new Vector3(-26.4f, 2.55f, 28.5f)
+		};
+		List<Vector3> PositionsBandit = new List<Vector3>()
+		{
+			new Vector3(-2.4f, 4, 3.5f),
+			new Vector3(-12.4f, 3, 17.5f),
+			new Vector3(27.4f, 3, -17.5f),
+			new Vector3(24.4f, 0, 10.5f),
+			new Vector3(23.4f, 0, 15.5f),
+			new Vector3(16.4f, 2, 17.5f),
+			new Vector3(-15.4f, 1, 17.5f),
 			new Vector3(-26.4f, 2.55f, 28.5f)
 		};
 		#endregion
@@ -61,7 +61,7 @@ namespace Oxide.Plugins
 					bagNameOutPost = "OUTPOST",
 					banditRespawn = true,
 					bagNameBandit = "BANDIT TOWN"
-					
+
 				};
 			}
 		}
@@ -86,48 +86,48 @@ namespace Oxide.Plugins
 		protected override void SaveConfig() => Config.WriteObject(config);
 
 
-        #endregion
+		#endregion
 
-        #region OxideHooks
-        void Unload()
-        {
-            foreach (var player in BasePlayer.activePlayerList)
-                OnPlayerDisconnected(player);
-        }
+		#region OxideHooks
+		void Unload()
+		{
+			foreach (var player in BasePlayer.activePlayerList)
+				OnPlayerDisconnected(player);
+		}
 
-        object OnPlayerRespawn(BasePlayer p, SleepingBag bag)
-        {
-			if(bags[p].Where(x => x.net.ID == bag.net.ID).Count() > 0)
-            {
+		object OnPlayerRespawn(BasePlayer p, SleepingBag bag)
+		{
+			if (bags[p].Where(x => x.net.ID == bag.net.ID).Count() > 0)
+			{
 				var pos = bag.niceName == config.bagNameBandit ? PositionsBandit : PositionsOutPost;
 				bag.transform.position = positions[bag.niceName].transform.position + positions[bag.niceName].transform.rotation * pos.GetRandom();
 			}
-            return false;
-        }
-        object OnServerCommand(ConsoleSystem.Arg arg)
-        {
-            uint netId = arg.GetUInt(0, 0);
-            if (arg.cmd.Name.ToLower() == "respawn_sleepingbag_remove" && netId != 0)
-            {
-                BasePlayer basePlayer = arg.Player();
-                if (!basePlayer)
-                    return false;
+			return false;
+		}
+		object OnServerCommand(ConsoleSystem.Arg arg)
+		{
+			uint netId = arg.GetUInt(0, 0);
+			if (arg.cmd.Name.ToLower() == "respawn_sleepingbag_remove" && netId != 0)
+			{
+				BasePlayer basePlayer = arg.Player();
+				if (!basePlayer)
+					return false;
 
-                if (bags[basePlayer].Where(bag => bag.net.ID == netId).Count() != 0)
-                    return false;
-            }
-            return null;
-        }
-        private void OnServerInitialized()
+				if (bags[basePlayer].Where(bag => bag.net.ID == netId).Count() != 0)
+					return false;
+			}
+			return null;
+		}
+		private void OnServerInitialized()
 		{
 			foreach (MonumentInfo monument in UnityEngine.Object.FindObjectsOfType<MonumentInfo>())
 			{
 				if (monument.name.ToLower().Contains("compound") && config.outPostRespawn)
-                {
+				{
 					positions.Add(config.bagNameOutPost, monument);
 				}
 				else if (monument.name.Contains("bandit") && config.banditRespawn)
-                {
+				{
 					positions.Add(config.bagNameBandit, monument);
 				}
 			}
@@ -164,10 +164,10 @@ namespace Oxide.Plugins
 				ResetToPool(bag);
 			}
 		}
-        #endregion
+		#endregion
 
-        #region Helpers
-        private SleepingBag FromPool(BasePlayer d)
+		#region Helpers
+		private SleepingBag FromPool(BasePlayer d)
 		{
 			SleepingBag bag;
 
@@ -184,7 +184,7 @@ namespace Oxide.Plugins
 
 			bag.deployerUserID = d.userID;
 			bag.net = Network.Net.sv.CreateNetworkable();
-
+			bag.niceName = "";
 			bag.secondsBetweenReuses = config.cooldown;
 			bag.transform.position = Vector3.one;
 			bag.RespawnType = ProtoBuf.RespawnInformation.SpawnOptions.RespawnType.Bed;
@@ -197,6 +197,6 @@ namespace Oxide.Plugins
 		{
 			bagsPool.Enqueue(bag);
 		}
-        #endregion
-    }
+		#endregion
+	}
 }
