@@ -97,7 +97,7 @@ namespace Oxide.Plugins
 
 		object OnPlayerRespawn(BasePlayer p, SleepingBag bag)
 		{
-			if (bags[p].Where(x => x.net.ID == bag.net.ID).Count() > 0)
+			if (bags[p].Where(x => x.net.ID == bag.net.ID).Any())
 			{
 				var pos = bag.niceName == config.bagNameBandit ? PositionsBandit : PositionsOutPost;
 				bag.transform.position = positions[bag.niceName].transform.position + positions[bag.niceName].transform.rotation * pos.GetRandom();
@@ -131,7 +131,7 @@ namespace Oxide.Plugins
 					positions.Add(config.bagNameBandit, monument);
 				}
 			}
-			foreach (var player in BasePlayer.activePlayerList)
+			foreach (BasePlayer player in BasePlayer.activePlayerList)
 				OnPlayerConnected(player);
 		}
 		private void OnPlayerConnected(BasePlayer d)
@@ -184,7 +184,7 @@ namespace Oxide.Plugins
 
 			bag.deployerUserID = d.userID;
 			bag.net = Network.Net.sv.CreateNetworkable();
-			bag.niceName = "";
+			bag.niceName = string.Empty;
 			bag.secondsBetweenReuses = config.cooldown;
 			bag.transform.position = Vector3.one;
 			bag.RespawnType = ProtoBuf.RespawnInformation.SpawnOptions.RespawnType.Bed;
