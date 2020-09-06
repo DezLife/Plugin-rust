@@ -1,11 +1,10 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
-using System.Linq;
 using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("Compound Teleport", "DezLife", "1.0.2")]
+	[Info("Compound Teleport", "DezLife", "1.0.3")]
 	[Description("Teleport through the death screen to the NPC town and bandit camp")]
 	class CompoundTeleport : RustPlugin
 	{
@@ -91,17 +90,23 @@ namespace Oxide.Plugins
 		#region OxideHooks
 		void Unload()
 		{
-			foreach (var player in BasePlayer.activePlayerList)
-				OnPlayerDisconnected(player);
+			foreach(SleepingBag[] bagsToRemove in bags.Values)
+                for (int i = 0; i < bagsToRemove.Length; i++)
+					bagsToRemove[i]?.Kill();
+			foreach (SleepingBag bagsToRemove in bagsPool)
+				bagsToRemove?.Kill();
 		}
 
 		object OnPlayerRespawn(BasePlayer p, SleepingBag bag)
 		{
-			if (bags[p].Where(x => x.net.ID == bag.net.ID).Any())
-			{
-				var pos = bag.niceName == config.bagNameBandit ? PositionsBandit : PositionsOutPost;
-				bag.transform.position = positions[bag.niceName].transform.position + positions[bag.niceName].transform.rotation * pos.GetRandom();
-			}
+			foreach(SleepingBag findBagPlayer in bags[p])
+            {
+				if(findBagPlayer.net.ID == bag.net.ID)
+                {
+					var pos = bag.niceName == config.bagNameBandit ? PositionsBandit : PositionsOutPost;
+					bag.transform.position = positions[bag.niceName].transform.position + positions[bag.niceName].transform.rotation * pos.GetRandom();
+				}
+            }
 			return false;
 		}
 		object OnServerCommand(ConsoleSystem.Arg arg)
@@ -111,25 +116,22 @@ namespace Oxide.Plugins
 			{
 				BasePlayer basePlayer = arg.Player();
 				if (!basePlayer)
-					return false;
+					return null;
 
-				if (bags[basePlayer].Where(bag => bag.net.ID == netId).Count() != 0)
-					return false;
+				foreach(SleepingBag noRemoveBags in bags[basePlayer])    
+					if (noRemoveBags.net.ID == netId)
+						return false;       
 			}
 			return null;
 		}
 		private void OnServerInitialized()
-		{
-			foreach (MonumentInfo monument in UnityEngine.Object.FindObjectsOfType<MonumentInfo>())
+		{		
+			foreach (MonumentInfo monument in TerrainMeta.Path.Monuments)
 			{
-				if (monument.name.ToLower().Contains("compound") && config.outPostRespawn)
-				{
+				if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/compound.prefab" && config.outPostRespawn)
 					positions.Add(config.bagNameOutPost, monument);
-				}
-				else if (monument.name.Contains("bandit") && config.banditRespawn)
-				{
+				else if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/bandit_town.prefab" && config.banditRespawn)
 					positions.Add(config.bagNameBandit, monument);
-				}
 			}
 			foreach (BasePlayer player in BasePlayer.activePlayerList)
 				OnPlayerConnected(player);
