@@ -4,7 +4,7 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("Compound Teleport", "DezLife", "1.0.3")]
+	[Info("Compound Teleport", "DezLife", "1.0.4")]
 	[Description("Teleport through the death screen to the NPC town and bandit camp")]
 	class CompoundTeleport : RustPlugin
 	{
@@ -105,9 +105,10 @@ namespace Oxide.Plugins
                 {
 					var pos = bag.niceName == config.bagNameBandit ? PositionsBandit : PositionsOutPost;
 					bag.transform.position = positions[bag.niceName].transform.position + positions[bag.niceName].transform.rotation * pos.GetRandom();
+					return false;
 				}
-            }
-			return false;
+			}
+			return null;
 		}
 		object OnServerCommand(ConsoleSystem.Arg arg)
 		{
