@@ -4,36 +4,17 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("Compound Teleport", "DezLife", "1.0.4")]
+	[Info("Compound Teleport", "DezLife", "1.0.7")]
 	[Description("Teleport through the death screen to the NPC town and bandit camp")]
 	class CompoundTeleport : RustPlugin
 	{
 		#region Variables
+		private int Layer = ~(1 << 8 | 1 << 10 | 1 << 18 | 1 << 21 | 1 << 24 | 1 << 28 | 1 << 29);
 		private Dictionary<string, MonumentInfo> positions = new Dictionary<string, MonumentInfo>();
 		private Dictionary<BasePlayer, SleepingBag[]> bags = new Dictionary<BasePlayer, SleepingBag[]>();
 		private Queue<SleepingBag> bagsPool = new Queue<SleepingBag>();
-		List<Vector3> PositionsOutPost = new List<Vector3>()
-		{
-			new Vector3(-6.4f, 0, 3.5f),
-			new Vector3(-12.4f, 0, 17.5f),
-			new Vector3(27.4f, 3, -17.5f),
-			new Vector3(24.4f, 0, 10.5f),
-			new Vector3(23.4f, 0, 15.5f),
-			new Vector3(12.4f, 0, 17.5f),
-			new Vector3(-15.4f, 0, 17.5f),
-			new Vector3(-26.4f, 2.55f, 28.5f)
-		};
-		List<Vector3> PositionsBandit = new List<Vector3>()
-		{
-			new Vector3(-2.4f, 4, 3.5f),
-			new Vector3(-12.4f, 3, 17.5f),
-			new Vector3(27.4f, 3, -17.5f),
-			new Vector3(24.4f, 0, 10.5f),
-			new Vector3(23.4f, 0, 15.5f),
-			new Vector3(16.4f, 2, 17.5f),
-			new Vector3(-15.4f, 1, 17.5f),
-			new Vector3(-26.4f, 2.55f, 28.5f)
-		};
+		List<Vector3> PositionsOutPost = new List<Vector3>();
+		List<Vector3> PositionsBandit = new List<Vector3>();	
 		#endregion
 
 		#region Config
@@ -71,17 +52,22 @@ namespace Oxide.Plugins
 			try
 			{
 				config = Config.ReadObject<Configuration>();
-				if (config == null) LoadDefaultConfig();
 			}
 			catch
 			{
-				PrintWarning("Error reading configuration 'oxide/config/{Name}', creating a new configuration !!");
-				LoadDefaultConfig();
+				PrintWarning("Error reading configuration 'oxide/config/{Name}' Check, please");
+				Unsubscribe("OnPlayerRespawn");
+				Unsubscribe("OnServerCommand");
+				Unsubscribe("OnPlayerConnected");
+				Unsubscribe("OnPlayerDisconnected");
 			}
 			NextTick(SaveConfig);
 		}
-
-		protected override void LoadDefaultConfig() => config = Configuration.GetNewConfiguration();
+		protected override void LoadDefaultConfig()
+		{
+			config = new Configuration();
+			SaveConfig();
+		}
 		protected override void SaveConfig() => Config.WriteObject(config);
 
 
@@ -95,30 +81,28 @@ namespace Oxide.Plugins
 					bagsToRemove[i]?.Kill();
 			foreach (SleepingBag bagsToRemove in bagsPool)
 				bagsToRemove?.Kill();
-		}
+		}	
 
-		object OnPlayerRespawn(BasePlayer p, SleepingBag bag)
+		void OnPlayerRespawn(BasePlayer p, SleepingBag bag)
 		{
 			foreach(SleepingBag findBagPlayer in bags[p])
             {
 				if(findBagPlayer.net.ID == bag.net.ID)
                 {
 					var pos = bag.niceName == config.bagNameBandit ? PositionsBandit : PositionsOutPost;
-					bag.transform.position = positions[bag.niceName].transform.position + positions[bag.niceName].transform.rotation * pos.GetRandom();
-					return false;
+					bag.transform.position = pos.GetRandom();
 				}
 			}
-			return null;
 		}
+
 		object OnServerCommand(ConsoleSystem.Arg arg)
 		{
+			BasePlayer basePlayer = arg.Player();
+			if (basePlayer == null)
+				return null;
 			uint netId = arg.GetUInt(0, 0);
 			if (arg.cmd.Name.ToLower() == "respawn_sleepingbag_remove" && netId != 0)
-			{
-				BasePlayer basePlayer = arg.Player();
-				if (!basePlayer)
-					return null;
-
+			{				
 				foreach(SleepingBag noRemoveBags in bags[basePlayer])    
 					if (noRemoveBags.net.ID == netId)
 						return false;       
@@ -130,9 +114,15 @@ namespace Oxide.Plugins
 			foreach (MonumentInfo monument in TerrainMeta.Path.Monuments)
 			{
 				if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/compound.prefab" && config.outPostRespawn)
+				{
+					SpawnPointGeneration(monument.transform.position, 45, PositionsOutPost, "carpark", "concrete_slabs", "road", "train_track", "pavement", "platform");
 					positions.Add(config.bagNameOutPost, monument);
+				}
 				else if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/bandit_town.prefab" && config.banditRespawn)
+                {
+					SpawnPointGeneration(monument.transform.position, 80, PositionsBandit, "helipad", "walkway", "rope", "floating");
 					positions.Add(config.bagNameBandit, monument);
+				}
 			}
 			foreach (BasePlayer player in BasePlayer.activePlayerList)
 				OnPlayerConnected(player);
@@ -167,6 +157,34 @@ namespace Oxide.Plugins
 				ResetToPool(bag);
 			}
 		}
+		#endregion
+
+		#region Metods generate spawn point
+
+		public void SpawnPointGeneration(Vector3 pos, float radius, List<Vector3> targetPosList, params string[] coliderName)
+		{
+			RaycastHit rayHit;
+			for (int i = 0; i < 150; i++)
+			{
+				Vector3 resultPositions = pos + (UnityEngine.Random.insideUnitSphere * radius);
+				resultPositions.y = pos.y + 100f;
+				if (Physics.Raycast(resultPositions, Vector3.down, out rayHit, 100, Layer, QueryTriggerInteraction.Ignore))
+				{
+					if (rayHit.collider is TerrainCollider)
+						targetPosList.Add(rayHit.point);
+					else
+					{
+						if (coliderName != null)
+							for (int a = 0; a < coliderName.Length; a++)
+							{
+								if (rayHit.collider.name.Contains(coliderName[a]))
+									targetPosList.Add(rayHit.point);
+							}
+					}
+				}
+			}
+		}
+
 		#endregion
 
 		#region Helpers
