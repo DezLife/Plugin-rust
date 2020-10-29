@@ -4,17 +4,18 @@ using Newtonsoft.Json;
 
 namespace Oxide.Plugins
 {
-	[Info("Compound Teleport", "DezLife", "1.0.6")]
+	[Info("Compound Teleport", "DezLife", "1.0.7")]
 	[Description("Teleport through the death screen to the NPC town and bandit camp")]
 	class CompoundTeleport : RustPlugin
 	{
 		#region Variables
 		private int Layer = ~(1 << 8 | 1 << 10 | 1 << 18 | 1 << 21 | 1 << 24 | 1 << 28 | 1 << 29);
-		private Dictionary<string, MonumentInfo> positions = new Dictionary<string, MonumentInfo>();
+		private Dictionary<string, Vector3> positions = new Dictionary<string, Vector3>();
 		private Dictionary<BasePlayer, SleepingBag[]> bags = new Dictionary<BasePlayer, SleepingBag[]>();
 		private Queue<SleepingBag> bagsPool = new Queue<SleepingBag>();
 		List<Vector3> PositionsOutPost = new List<Vector3>();
-		List<Vector3> PositionsBandit = new List<Vector3>();	
+		List<Vector3> PositionsBandit = new List<Vector3>();
+
 		#endregion
 
 		#region Config
@@ -110,20 +111,29 @@ namespace Oxide.Plugins
 			return null;
 		}
 		private void OnServerInitialized()
-		{		
-			foreach (MonumentInfo monument in TerrainMeta.Path.Monuments)
-			{
-				if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/compound.prefab" && config.outPostRespawn)
+		{
+			if (ConVar.Server.level == "HapisIsland" && config.outPostRespawn)
+            {
+				SpawnPointGeneration(new Vector3(-211f, 105f, -432f), 40, PositionsOutPost, "carpark", "concrete_slabs", "road", "train_track", "pavement", "platform");
+				positions.Add(config.bagNameOutPost, new Vector3(-211f, 105f, -432f));
+			}
+			else
+            {
+				foreach (MonumentInfo monument in TerrainMeta.Path.Monuments)
 				{
-					SpawnPointGeneration(monument.transform.position, 45, PositionsOutPost, "carpark", "concrete_slabs", "road", "train_track", "pavement", "platform");
-					positions.Add(config.bagNameOutPost, monument);
-				}
-				else if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/bandit_town.prefab" && config.banditRespawn)
-                {
-					SpawnPointGeneration(monument.transform.position, 80, PositionsBandit, "helipad", "walkway", "rope", "floating");
-					positions.Add(config.bagNameBandit, monument);
+					if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/compound.prefab" && config.outPostRespawn)
+					{
+						SpawnPointGeneration(monument.transform.position, 40, PositionsOutPost, "carpark", "concrete_slabs", "road", "train_track", "pavement", "platform");
+						positions.Add(config.bagNameOutPost, monument.transform.position);
+					}
+					else if (monument.name.ToLower() == "assets/bundled/prefabs/autospawn/monument/medium/bandit_town.prefab" && config.banditRespawn)
+					{
+						SpawnPointGeneration(monument.transform.position, 80, PositionsBandit, "helipad", "walkway", "rope", "floating");
+						positions.Add(config.bagNameBandit, monument.transform.position);
+					}
 				}
 			}
+				
 			foreach (BasePlayer player in BasePlayer.activePlayerList)
 				OnPlayerConnected(player);
 		}
@@ -138,7 +148,7 @@ namespace Oxide.Plugins
 			{
 				SleepingBag bag = FromPool(d);
 				bag.niceName = positionKvp.Key;
-				bag.transform.position = positionKvp.Value.transform.position;
+				bag.transform.position = positionKvp.Value;
 
 				bags[d][++idx] = bag;
 
@@ -157,16 +167,17 @@ namespace Oxide.Plugins
 				ResetToPool(bag);
 			}
 		}
+
 		#endregion
 
 		#region Metods generate spawn point
 
 		public void SpawnPointGeneration(Vector3 pos, float radius, List<Vector3> targetPosList, params string[] coliderName)
 		{
-			RaycastHit rayHit;
 			for (int i = 0; i < 150; i++)
 			{
-				Vector3 resultPositions = pos + (UnityEngine.Random.insideUnitSphere * radius);
+				RaycastHit rayHit;
+				Vector3 resultPositions = pos + (Random.insideUnitSphere * radius);
 				resultPositions.y = pos.y + 100f;
 				if (Physics.Raycast(resultPositions, Vector3.down, out rayHit, 100, Layer, QueryTriggerInteraction.Ignore))
 				{
